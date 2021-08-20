@@ -732,8 +732,8 @@ if __name__ == '__main__':
     iter_num = 500
 
 
-    # mode = 'with_diff'
-    mode = 'no_diff'
+    mode = 'with_diff'
+    # mode = 'no_diff'
     load_data = True
     save_data = False
     show_bounds = True
