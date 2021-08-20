@@ -31,9 +31,9 @@ def GD(A, b, x_0, r, eta, iter_num):
             x_i.append(new_point/norm(new_point) * r)
         else:
             x_i.append(new_point)
-        if nabla <= 0.00001:
+        if norm(nabla) <= 0.00001:
             break
-    return x_i[-1]
+    return x_i
 
 def PGD(A, b, x_0, beta, r, iter_num):
     x_i = [x_0]
@@ -118,7 +118,8 @@ def SGD(A, b, x_0, r, alpha, iter_num):
     y_s = [x_i[-1]]
 
     for k in range(iter_num):
-        eta = 2 / (alpha * (k+1))
+        # eta = 2 / (alpha * np.sqrt(k+1))
+        eta = 2 / (alpha * k+1)
         ch_num = A.shape[0]
         for s in range(ch_num):
             new_point = y_s[-1] - eta * SGD_SO_f(A,b,y_s[-1])
@@ -321,7 +322,7 @@ def run_all_methods(methods, iter_num = 100, mode = 'base_error_diff'):
     if (s[-1] ** 2 < 0.0000001):
         x_0 = np.random.randn(n)
         x_0 = (x_0 / norm(x_0)) * np.random.uniform(0, 5)
-        X_n = GD(A, b, x_0, r=5, eta=1 / beta, iter_num=6000)
+        X_n = GD(A, b, x_0, r=5, eta=1 / beta, iter_num=6000)[-1]
         base_error = 1 / 2 * (norm(np.matmul(A, X_n) - b) ** 2)
     else:
         A_tA = inv(np.matmul(A_t, A))
@@ -334,13 +335,25 @@ def run_all_methods(methods, iter_num = 100, mode = 'base_error_diff'):
     res = {}
 
     CGD_lin_bound = 2 * beta * (2 * rad) ** 2
-    alpha_K = 1 / rad
-    M = alpha ** 0.5 * alpha_K / (8 * np.sqrt(2) * beta)
-    CGD_sq_bound = max(9 / 2 * beta * ((2 * rad) ** 2), 18 * (M ** (-2)))
+    # alpha_K = 1 / rad
+    alpha_K = alpha / np.sqrt(2*beta*rad)
+    M = np.sqrt(alpha) * alpha_K / (8 * np.sqrt(2) * beta)
+    CGD_sq_bound = min(9 / 2 * beta * ((2 * rad) ** 2), 18 * (M ** (-2)))
 
     AGM_sq_bound = 32 * beta * norm(x_0 - x_star)**2 / 9
 
     # L = 0.5
+
+    if('GD' in methods or 'all' in methods):
+        GD_res = []
+        GD_iterations = GD(A, b, x_0, r=rad, eta=1/beta, iter_num=iter_num)
+        for x in GD_iterations:
+            if(mode == 'with_diff'):
+                GD_res.append(1 / 2 * (norm(np.matmul(A, x) - b) ** 2) - base_error)
+            else:
+                GD_res.append(1 / 2 * (norm(np.matmul(A, x) - b) ** 2))
+
+        res['GD'] = GD_res
 
     if('CGD' in methods or 'all' in methods):
         CGD_res = []
@@ -471,6 +484,11 @@ def l_2(iter_num=600, methods=['all'], load_data=True, simulations_num=20, mode=
                     only calculates methods error o.w.
     """
     if(load_data):
+        # # Gradient descent
+        # GD_file = open(f'results/l_2/GD_{mode}.pkl', 'rb')
+        # GD_res = pkl.load(GD_file)
+        # GD_file.close()
+
         # Linear convergence rate
         CGD_lin_file = open(f'results/l_2/CGD_lin_{mode}.pkl', 'rb')
         CGD_lin_res = pkl.load(CGD_lin_file)
@@ -498,9 +516,9 @@ def l_2(iter_num=600, methods=['all'], load_data=True, simulations_num=20, mode=
         SGD_res = pkl.load(SGD_file)
         SGD_file.close()
 
-        # PGD_file = open(f'results/l_2/PGD_{mode}.pkl', 'rb')
-        # PGD_res = pkl.load(PGD_file)
-        # PGD_file.close()
+        PGD_file = open(f'results/l_2/PGD_{mode}.pkl', 'rb')
+        PGD_res = pkl.load(PGD_file)
+        PGD_file.close()
 
         SVRG_file = open(f'results/l_2/SVRG_{mode}.pkl', 'rb')
         SVRG_res = pkl.load(SVRG_file)
@@ -511,58 +529,75 @@ def l_2(iter_num=600, methods=['all'], load_data=True, simulations_num=20, mode=
             res.append(run_all_methods(methods, iter_num, mode))
             print(f"Iteration {k+1} was implemented successfully")
 
+        # # 0 Gradient descent
+        # GD_res = [el['GD'] for el in res]
+        # if (save_data):
+        #     GD_file = open(f'results/l_2/GD_{mode}.pkl', 'wb')
+        #     pkl.dump(GD_res, GD_file, -1)
+        #     GD_file.close()
+
         # 1 Conditional gradient descent
         if('CGD' in methods or 'all' in methods):
             # Linear convergence rate
             CGD_lin_res = [res[0]['CGD_lin']]
-            CGD_lin_file = open(f'results/l_2/CGD_lin_{mode}.pkl', 'wb')
-            pkl.dump(CGD_lin_res, CGD_lin_file, -1)
-            CGD_lin_file.close()
+            if(save_data):
+                CGD_lin_file = open(f'results/l_2/CGD_lin_{mode}.pkl', 'wb')
+                pkl.dump(CGD_lin_res, CGD_lin_file, -1)
+                CGD_lin_file.close()
 
             # Squared convergence rate
             CGD_sq_res = [res[0]['CGD_sq']]
-            CGD_sq_file = open(f'results/l_2/CGD_sq_{mode}.pkl', 'wb')
-            pkl.dump(CGD_sq_res, CGD_sq_file, -1)
-            CGD_sq_file.close()
+            if(save_data):
+                CGD_sq_file = open(f'results/l_2/CGD_sq_{mode}.pkl', 'wb')
+                pkl.dump(CGD_sq_res, CGD_sq_file, -1)
+                CGD_sq_file.close()
 
 
             CGD_res = [el['CGD'] for el in res]
-            CGD_file = open(f'results/l_2/CGD_{mode}.pkl', 'wb')
-            pkl.dump(CGD_res, CGD_file, -1)
-            CGD_file.close()
+            if(save_data):
+                CGD_file = open(f'results/l_2/CGD_{mode}.pkl', 'wb')
+                pkl.dump(CGD_res, CGD_file, -1)
+                CGD_file.close()
         # 2 Accelerated Nesterov Gradient Method
         if ('AGM' in methods or 'all' in methods):
 
             # AGM Squared convergence rate
             AGM_sq_res = [res[0]['AGM_sq']]
-            AGM_sq_file = open(f'results/l_2/AGM_sq_{mode}.pkl', 'wb')
-            pkl.dump(AGM_sq_res, AGM_sq_file, -1)
-            AGM_sq_file.close()
+            if(save_data):
+                AGM_sq_file = open(f'results/l_2/AGM_sq_{mode}.pkl', 'wb')
+                pkl.dump(AGM_sq_res, AGM_sq_file, -1)
+                AGM_sq_file.close()
 
             AGM_res = [el['AGM'] for el in res]
-            AGM_file = open(f'results/l_2/AGM_{mode}.pkl', 'wb')
-            pkl.dump(AGM_res, AGM_file, -1)
-            AGM_file.close()
+            if(save_data):
+                AGM_file = open(f'results/l_2/AGM_{mode}.pkl', 'wb')
+                pkl.dump(AGM_res, AGM_file, -1)
+                AGM_file.close()
         # 3 Stochastic gradient descent
         if ('SGD' in methods or 'all' in methods):
             SGD_res = [el['SGD'] for el in res]
-            SGD_file = open(f'results/l_2/SGD_{mode}.pkl', 'wb')
-            pkl.dump(SGD_res, SGD_file, -1)
-            SGD_file.close()
+            if(save_data):
+                SGD_file = open(f'results/l_2/SGD_{mode}.pkl', 'wb')
+                pkl.dump(SGD_res, SGD_file, -1)
+                SGD_file.close()
         # 4 Stochastic variance reduced gradient
         if ('SVRG' in methods or 'all' in methods):
             SVRG_res = [el['SVRG'] for el in res]
-            SVRG_file = open(f'results/l_2/SVRG_{mode}.pkl', 'wb')
-            pkl.dump(SVRG_res, SVRG_file, -1)
-            SVRG_file.close()
+            if(save_data):
+                SVRG_file = open(f'results/l_2/SVRG_{mode}.pkl', 'wb')
+                pkl.dump(SVRG_res, SVRG_file, -1)
+                SVRG_file.close()
 
-        # # 5 Projected gradient descent
-        # if ('PGD' in methods or 'all' in methods):
-        #     PGD_res = [el['PGD'] for el in res]
-        #     PGD_file = open(f'results/l_2/PGD_{mode}.pkl', 'wb')
-        #     pkl.dump(PGD_res, PGD_file, -1)
-        #     PGD_file.close()
+        # 5 Projected gradient descent
+        if ('PGD' in methods or 'all' in methods):
+            PGD_res = [el['PGD'] for el in res]
+            if (save_data):
+                PGD_file = open(f'results/l_2/PGD_{mode}.pkl', 'wb')
+                pkl.dump(PGD_res, PGD_file, -1)
+                PGD_file.close()
 
+    # if ('GD' in methods or 'all' in methods):
+    #     plot_data(GD_res, f'GD', color='black')
     if ('CGD' in methods or 'all' in methods):
         if(show_bounds):
             plot_data(CGD_lin_res, f'CGD linear rate', color='black', linestyle='dashed')
@@ -571,19 +606,19 @@ def l_2(iter_num=600, methods=['all'], load_data=True, simulations_num=20, mode=
     if ('AGM' in methods or 'all' in methods):
         if (show_bounds):
             plot_data(AGM_sq_res, f'AGM square rate', color='brown', linestyle='dashed')
-        plot_data(AGM_res, f'AGD', color='b')
-        # pass
+        plot_data(AGM_res, f'AGD', color='magenta')
+        pass
     if ('SGD' in methods or 'all' in methods):
         plot_data(SGD_res, f'SGD', color='r')
     if ('SVRG' in methods or 'all' in methods):
         plot_data(SVRG_res, f'SVRG', color='cyan')
-    # if ('PGD' in methods or 'all' in methods):
-    #     plot_data(PGD_res, f'PGD', color='magenta')
+    if ('PGD' in methods or 'all' in methods):
+        plot_data(PGD_res, f'PGD', color='blue')
 
     axes = plt.gca()
     plt.xlabel('Iterations')
     if(mode == 'with_diff'):
-        plt.ylabel('abs(f(X_t) - f(X*))')
+        plt.ylabel('norm(f(X_t) - f(X*))')
     else:
         plt.ylabel('f(X_t)')
     plt.yscale('log')
@@ -700,11 +735,13 @@ if __name__ == '__main__':
     # mode = 'with_diff'
     mode = 'no_diff'
     load_data = True
-    show_bounds = False
+    save_data = False
+    show_bounds = True
     simulations_num = 20
 
-    # methods = ['CGD', 'AGM']
-    methods = ['all']
+    # methods = ['CGD']
+    # methods = ['all']
+    methods = ['CGD', 'SGD', 'SVRG', 'PGD']
     l_2(iter_num, methods, load_data, simulations_num, mode, show_bounds)
 
     methods = ['CGD_Schatten_2']
